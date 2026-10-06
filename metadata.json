@@ -1,0 +1,6 @@
+{
+  "name": "LitVault - Digital Literary & Publishing Platform",
+  "description": "LitVault is a modern digital literary platform where readers discover and read novels, short stories, and poetry, while authors publish and monetize their books.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /author/drafts
+
+Sitemap: https://ais-pre-743sjlhcri5pajwywiuo6v-70562184549.europe-west1.run.app/sitemap.xml

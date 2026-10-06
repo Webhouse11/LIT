@@ -1,0 +1,48 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'olurantiprofile@gmail.com' && request.auth.token.email_verified == true) ||
+        (request.auth.token.admin == true)
+      );
+    }
+
+    function isSafeImage(maxSizeBytes) {
+      return request.resource.size <= maxSizeBytes &&
+             request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // Default deny all paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Public book covers uploaded by verified authors
+    // SECURED: Max 5MB, strict JPEG/PNG/WebP format, prevents SVG XSS & executable uploads
+    match /book-covers/{authorId}/{fileName} {
+      allow read: if true;
+      allow write: if (
+        ((isSignedIn() && (request.auth.uid == authorId || ('author-' + request.auth.uid) == authorId)) || isAdmin()) &&
+        isSafeImage(5 * 1024 * 1024) &&
+        fileName.size() <= 100
+      );
+    }
+
+    // Author and user profile photos
+    // SECURED: Max 2MB, strict JPEG/PNG/WebP format
+    match /profiles/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if (
+        ((isSignedIn() && request.auth.uid == userId) || isAdmin()) &&
+        isSafeImage(2 * 1024 * 1024) &&
+        fileName.size() <= 100
+      );
+    }
+  }
+}

@@ -1,0 +1,332 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'olurantiprofile@gmail.com' && request.auth.token.email_verified == true) ||
+        (request.auth.token.admin == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Super Admin registry (accessible only to verified admins)
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Users collection
+    // Enforces:
+    // 1. Users cannot elevate their own role to 'admin' or 'author'
+    // 2. Users cannot fabricate token balances directly
+    // 3. Users cannot modify account suspension status
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) && 
+        (!('role' in incoming()) || incoming().role == 'reader' || isAdmin()) &&
+        (!('status' in incoming()) || incoming().status == 'active' || isAdmin()) &&
+        (!('tokenBalance' in incoming()) || incoming().tokenBalance == 0 || isAdmin());
+      allow update: if isAdmin() || (
+        isOwner(userId) && 
+        !incoming().diff(existing()).affectedKeys().hasAny(['role', 'status', 'tokenBalance', 'createdAt', 'uid', 'email'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Authors collection
+    // Enforces:
+    // 1. Authors cannot approve their own creator profiles
+    // 2. Authors cannot alter their token balances or lifetime earnings
+    // 3. Authors cannot inflate reader counts or ratings
+    match /authors/{authorId} {
+      allow read: if true;
+      allow create: if isSignedIn() && 
+        (incoming().userId == request.auth.uid || isAdmin()) &&
+        incoming().status in ['pending', 'draft'] &&
+        (!('balanceTokens' in incoming()) || incoming().balanceTokens == 0) &&
+        (!('totalEarningsTokens' in incoming()) || incoming().totalEarningsTokens == 0) &&
+        (!('totalReaders' in incoming()) || incoming().totalReaders == 0) &&
+        (!('totalReads' in incoming()) || incoming().totalReads == 0);
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        existing().userId == request.auth.uid &&
+        incoming().userId == existing().userId &&
+        incoming().status == existing().status && // Cannot self-approve or self-reinstate
+        incoming().balanceTokens == existing().balanceTokens && // Cannot falsify token balances
+        incoming().totalEarningsTokens == existing().totalEarningsTokens &&
+        incoming().totalReaders == existing().totalReaders &&
+        incoming().totalReads == existing().totalReads &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'bio', 'location', 'photoURL', 'website', 'twitter', 'updatedAt'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Books collection
+    // Enforces:
+    // 1. Books must be approved by admin before appearing as 'published' (unless saved as draft)
+    // 2. Authors cannot approve or publish their own books directly
+    // 3. Authors cannot falsify reads, ratings, or featured status
+    // 4. Token pricing must be non-negative integer
+    match /books/{bookId} {
+      allow read: if resource.data.status == 'published' || 
+        (isSignedIn() && (
+          resource.data.authorId == request.auth.uid || 
+          resource.data.authorId == ('author-' + request.auth.uid) ||
+          isAdmin()
+        ));
+      
+      allow create: if isSignedIn() && 
+        (incoming().authorId == request.auth.uid || 
+         incoming().authorId == ('author-' + request.auth.uid) ||
+         isAdmin()) &&
+        incoming().status in ['draft', 'pending_review'] && // Strictly cannot create directly as 'published'
+        (!('tokenPrice' in incoming()) || (incoming().tokenPrice is int && incoming().tokenPrice >= 0)) &&
+        (!('featured' in incoming()) || incoming().featured == false || isAdmin()) &&
+        (!('readsCount' in incoming()) || incoming().readsCount == 0 || isAdmin());
+      
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        (existing().authorId == request.auth.uid || existing().authorId == ('author-' + request.auth.uid)) &&
+        incoming().authorId == existing().authorId &&
+        // Authors cannot set status to 'published' or 'approved'
+        (!incoming().diff(existing()).affectedKeys().hasAny(['status']) || incoming().status in ['draft', 'pending_review']) &&
+        !incoming().diff(existing()).affectedKeys().hasAny(['featured', 'readsCount', 'rating', 'reviewCount']) &&
+        (!('tokenPrice' in incoming()) || (incoming().tokenPrice is int && incoming().tokenPrice >= 0))
+      );
+      
+      allow delete: if isAdmin() || (
+        isSignedIn() && 
+        (existing().authorId == request.auth.uid || existing().authorId == ('author-' + request.auth.uid)) && 
+        existing().status == 'draft'
+      );
+
+      // Chapters subcollection
+      // Enforces: suspended books cannot have chapters altered; prices must be non-negative integer
+      match /chapters/{chapterId} {
+        allow read: if true;
+        allow create, update: if isSignedIn() && (
+          (
+            (get(/databases/$(database)/documents/books/$(bookId)).data.authorId == request.auth.uid ||
+             get(/databases/$(database)/documents/books/$(bookId)).data.authorId == ('author-' + request.auth.uid)) &&
+            get(/databases/$(database)/documents/books/$(bookId)).data.status != 'suspended' &&
+            (!('tokenPrice' in incoming()) || (incoming().tokenPrice is int && incoming().tokenPrice >= 0))
+          ) ||
+          isAdmin()
+        );
+        allow delete: if isAdmin() || (
+          isSignedIn() && 
+          (get(/databases/$(database)/documents/books/$(bookId)).data.authorId == request.auth.uid ||
+           get(/databases/$(database)/documents/books/$(bookId)).data.authorId == ('author-' + request.auth.uid))
+        );
+      }
+    }
+
+    // Wallets collection
+    // CRITICAL SECURITY ENFORCEMENT:
+    // Readers CANNOT modify their own token balances. Only server-side admin operations can write balance changes.
+    match /wallets/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      // On creation, balance must start strictly at 0
+      allow create: if (isOwner(userId) && incoming().tokenBalance == 0 && incoming().totalPurchased == 0 && incoming().totalSpent == 0) || isAdmin();
+      // ONLY admin or verified server proxy can update token balances
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Transactions collection
+    // CRITICAL: Purchases cannot be fabricated as 'completed' by the client.
+    // Client can only initiate with status 'pending'; backend verifies payment and marks 'completed'.
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && 
+        incoming().userId == request.auth.uid && 
+        incoming().status == 'pending' &&
+        incoming().amountCents is int && incoming().amountCents >= 0 &&
+        incoming().tokensPurchased is int && incoming().tokensPurchased > 0;
+      // Only admin / payment webhook can mark transaction as 'completed'
+      allow update, delete: if isAdmin();
+    }
+
+    // Book Unlocks ledger
+    // Validates identity and non-negative spent tokens; immutable once recorded
+    match /bookUnlocks/{unlockId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.authorId == request.auth.uid || 
+        resource.data.authorId == ('author-' + request.auth.uid) ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && 
+        incoming().userId == request.auth.uid &&
+        incoming().tokensSpent is int && incoming().tokensSpent >= 0 &&
+        incoming().bookId is string &&
+        incoming().authorId is string;
+      allow update, delete: if isAdmin();
+    }
+
+    // Author Earnings ledger
+    // Authors cannot fabricate royalty earnings; strictly managed by platform ledger
+    match /authorEarnings/{earningId} {
+      allow read: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid || 
+        resource.data.authorId == ('author-' + request.auth.uid) || 
+        isAdmin()
+      );
+      allow write: if isAdmin();
+    }
+
+    // Token Packages (Admin configured bundles)
+    match /tokenPackages/{packageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Author Withdrawals
+    // SECURED: IDOR protected - user can only request withdrawal for their own author profile
+    // Validates status must be 'pending', minimum withdrawal integer boundary
+    match /withdrawals/{withdrawalId} {
+      allow read: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid || 
+        resource.data.authorId == ('author-' + request.auth.uid) || 
+        isAdmin()
+      );
+      allow create: if isSignedIn() && 
+        incoming().status == 'pending' &&
+        incoming().tokensRequested is int && incoming().tokensRequested >= 10 &&
+        incoming().amountCents is int && incoming().amountCents > 0 &&
+        (
+          incoming().authorId == request.auth.uid ||
+          incoming().authorId == ('author-' + request.auth.uid) ||
+          (exists(/databases/$(database)/documents/authors/$(incoming().authorId)) &&
+           get(/databases/$(database)/documents/authors/$(incoming().authorId)).data.userId == request.auth.uid) ||
+          isAdmin()
+        );
+      allow update, delete: if isAdmin();
+    }
+
+    // Reviews & Ratings
+    // SECURED: Sanitized rating boundary (1-5 integer) & comment size boundary (1-2000 chars)
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && 
+        incoming().userId == request.auth.uid &&
+        incoming().rating is int && incoming().rating >= 1 && incoming().rating <= 5 &&
+        incoming().comment is string && incoming().comment.size() >= 2 && incoming().comment.size() <= 2000;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid &&
+        incoming().userId == request.auth.uid &&
+        incoming().rating is int && incoming().rating >= 1 && incoming().rating <= 5 &&
+        incoming().comment is string && incoming().comment.size() <= 2000;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Content Moderation & Copyright Reports
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && 
+        incoming().reporterId == request.auth.uid &&
+        incoming().status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+
+    // System Notifications
+    // SECURED: System broadcasts are admin-only; users cannot spoof administrator notifications
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.userId == ('author-' + request.auth.uid) ||
+        resource.data.userId == 'global' || 
+        isAdmin()
+      );
+      allow create: if isAdmin() || (
+        isSignedIn() && 
+        incoming().userId == request.auth.uid && 
+        (!('type' in incoming()) || incoming().type in ['review', 'unlock'])
+      );
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.userId == ('author-' + request.auth.uid) || 
+        isAdmin()
+      ) && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.userId == ('author-' + request.auth.uid) || 
+        isAdmin()
+      );
+    }
+
+    // Reading Bookmarks
+    match /bookmarks/{bookmarkId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Reading Progress Tracking
+    match /readingProgress/{progressId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // User Saved Library
+    match /libraries/{libraryId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Author Follows
+    match /follows/{followId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Platform Genres & Taxonomy
+    match /genres/{genreId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Advertisements Configuration
+    match /advertisements/{adId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Platform Global Settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Administrative Audit Logs
+    // SECURED: Only verified administrators can append; strictly append-only (updates and deletes forbidden)
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false; // Immutable audit trail
+    }
+  }
+}

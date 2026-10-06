@@ -1,0 +1,316 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered user profile and role info",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["reader", "author", "admin"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Author": {
+      "title": "Author",
+      "description": "Author profile and publishing statistics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "bio": { "type": "string" },
+        "location": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "suspended"] },
+        "balanceTokens": { "type": "integer" },
+        "totalEarningsTokens": { "type": "integer" },
+        "totalReaders": { "type": "integer" },
+        "totalReads": { "type": "integer" },
+        "rating": { "type": "number" },
+        "copyrightAgreed": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "status"]
+    },
+    "Book": {
+      "title": "Book",
+      "description": "Literary work metadata and publication status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "description": { "type": "string" },
+        "genre": { "type": "string" },
+        "tags": { "type": "array" },
+        "language": { "type": "string" },
+        "ageRating": { "type": "string" },
+        "isPremium": { "type": "boolean" },
+        "tokenPrice": { "type": "integer" },
+        "status": { "type": "string", "enum": ["draft", "pending_review", "approved", "published", "rejected", "suspended"] },
+        "readsCount": { "type": "integer" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "integer" },
+        "featured": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "authorId", "genre", "status"]
+    },
+    "Chapter": {
+      "title": "Chapter",
+      "description": "Structured book chapter content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookId": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "isPremium": { "type": "boolean" },
+        "tokenPrice": { "type": "integer" },
+        "status": { "type": "string", "enum": ["draft", "published"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "bookId", "chapterNumber", "title", "content"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "User LitTokens wallet ledger balance",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "tokenBalance": { "type": "integer" },
+        "totalPurchased": { "type": "integer" },
+        "totalSpent": { "type": "integer" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "tokenBalance"]
+    },
+    "TokenPackage": {
+      "title": "TokenPackage",
+      "description": "Purchasable LitToken bundle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "tokens": { "type": "integer" },
+        "priceCents": { "type": "integer" },
+        "currency": { "type": "string" },
+        "popular": { "type": "boolean" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "tokens", "priceCents", "currency", "active"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "LitToken fiat purchase log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "packageId": { "type": "string" },
+        "paymentReference": { "type": "string" },
+        "amountCents": { "type": "integer" },
+        "currency": { "type": "string" },
+        "tokensPurchased": { "type": "integer" },
+        "paymentProvider": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "amountCents", "tokensPurchased", "status"]
+    },
+    "BookUnlock": {
+      "title": "BookUnlock",
+      "description": "Immutable unlock record for premium literary works",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "bookId": { "type": "string" },
+        "chapterId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "tokensSpent": { "type": "integer" },
+        "authorShare": { "type": "integer" },
+        "platformShare": { "type": "integer" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "bookId", "tokensSpent"]
+    },
+    "AuthorEarning": {
+      "title": "AuthorEarning",
+      "description": "Log of token earnings allocated to author accounts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "bookId": { "type": "string" },
+        "unlockId": { "type": "string" },
+        "tokensEarned": { "type": "integer" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "authorId", "tokensEarned"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Book rating and reader review",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "rating": { "type": "integer" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "bookId", "userId", "rating", "comment"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Content moderation or copyright report",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["book", "review", "author"] },
+        "targetId": { "type": "string" },
+        "targetTitle": { "type": "string" },
+        "reason": { "type": "string" },
+        "details": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "dismissed", "action_taken"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "reporterId", "targetType", "targetId", "reason", "status"]
+    },
+    "Withdrawal": {
+      "title": "Withdrawal",
+      "description": "Author payout request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "tokensRequested": { "type": "integer" },
+        "amountCents": { "type": "integer" },
+        "currency": { "type": "string" },
+        "payoutDetails": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "completed", "rejected"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "authorId", "tokensRequested", "amountCents", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Reader or author system notification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "message"]
+    },
+    "Genre": {
+      "title": "Genre",
+      "description": "Taxonomy genre item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "description": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "slug"]
+    },
+    "PlatformSetting": {
+      "title": "PlatformSetting",
+      "description": "Global settings for the LitVault ecosystem",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorRevenueSharePercent": { "type": "integer" },
+        "platformRevenueSharePercent": { "type": "integer" },
+        "tokenValueCents": { "type": "integer" },
+        "requireAuthorApproval": { "type": "boolean" },
+        "requireBookApproval": { "type": "boolean" },
+        "announcement": { "type": "string" }
+      },
+      "required": ["authorRevenueSharePercent", "tokenValueCents"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "User profiles and credentials"
+    },
+    "/authors/{authorId}": {
+      "schema": { "$ref": "Author" },
+      "description": "Published authors on LitVault"
+    },
+    "/books/{bookId}": {
+      "schema": { "$ref": "Book" },
+      "description": "Literary catalog items"
+    },
+    "/books/{bookId}/chapters/{chapterId}": {
+      "schema": { "$ref": "Chapter" },
+      "description": "Chapters belonging to a book"
+    },
+    "/wallets/{userId}": {
+      "schema": { "$ref": "Wallet" },
+      "description": "User token wallets"
+    },
+    "/tokenPackages/{packageId}": {
+      "schema": { "$ref": "TokenPackage" },
+      "description": "Active purchasable token packs"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "Transaction" },
+      "description": "Token purchase logs"
+    },
+    "/bookUnlocks/{unlockId}": {
+      "schema": { "$ref": "BookUnlock" },
+      "description": "Premium work unlock ledger"
+    },
+    "/authorEarnings/{earningId}": {
+      "schema": { "$ref": "AuthorEarning" },
+      "description": "Author royalty ledger records"
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "Review" },
+      "description": "Book reviews"
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "Report" },
+      "description": "Moderation reports"
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": { "$ref": "Withdrawal" },
+      "description": "Author payout requests"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "Notification" },
+      "description": "User notifications"
+    },
+    "/genres/{genreId}": {
+      "schema": { "$ref": "Genre" },
+      "description": "Literary taxonomy categories"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "PlatformSetting" },
+      "description": "Platform global configuration"
+    }
+  }
+}
