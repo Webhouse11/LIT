@@ -134,3 +134,56 @@ export function validateFinancialInteger(value: unknown, min = 0, max = 10000000
   }
   return value;
 }
+
+export interface PasswordValidationResult {
+  valid: boolean;
+  score: number;
+  strengthLabel: 'Weak' | 'Fair' | 'Good' | 'Strong';
+  hasMinLength: boolean;
+  hasLetter: boolean;
+  hasNumber: boolean;
+  hasSpecial: boolean;
+  message?: string;
+}
+
+export function validatePassword(password: string): PasswordValidationResult {
+  const hasMinLength = password.length >= 8;
+  const hasLetter = /[a-zA-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[^a-zA-Z0-9]/.test(password);
+  const hasUppercase = /[A-Z]/.test(password);
+
+  let score = 0;
+  if (password.length >= 6) score++;
+  if (hasMinLength) score++;
+  if (hasLetter && hasNumber) score++;
+  if (hasSpecial || hasUppercase) score++;
+
+  let strengthLabel: 'Weak' | 'Fair' | 'Good' | 'Strong' = 'Weak';
+  if (score >= 4) strengthLabel = 'Strong';
+  else if (score === 3) strengthLabel = 'Good';
+  else if (score === 2) strengthLabel = 'Fair';
+
+  const valid = hasMinLength && hasLetter && hasNumber;
+  let message: string | undefined;
+  if (!password) {
+    message = 'Please enter a password.';
+  } else if (!hasMinLength) {
+    message = 'Password must be at least 8 characters long.';
+  } else if (!hasLetter) {
+    message = 'Password must contain at least one letter.';
+  } else if (!hasNumber) {
+    message = 'Password must contain at least one number.';
+  }
+
+  return {
+    valid,
+    score,
+    strengthLabel,
+    hasMinLength,
+    hasLetter,
+    hasNumber,
+    hasSpecial,
+    message,
+  };
+}

@@ -10,12 +10,15 @@ import { AuthorDashboard } from './components/AuthorDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AuthorProfilePage } from './components/AuthorProfilePage';
 import { LibraryPage } from './components/LibraryPage';
+import { ReaderDashboard } from './components/ReaderDashboard';
 import { WalletPage } from './components/WalletPage';
 import { LegalPages } from './components/LegalPages';
 import { TokenStoreModal } from './components/modals/TokenStoreModal';
 import { UnlockModal } from './components/modals/UnlockModal';
 import { ReportModal } from './components/modals/ReportModal';
 import { ReviewModal } from './components/modals/ReviewModal';
+import { AuthModal } from './components/modals/AuthModal';
+import { AuthPage } from './components/AuthPage';
 import { Book } from './types';
 
 function MainApp() {
@@ -57,6 +60,14 @@ function MainApp() {
     bookId: '',
     bookTitle: '',
   });
+
+  // Authentication Modal state
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signup');
+
+  const handleOpenAuth = (mode: 'signin' | 'signup' = 'signup') => {
+    handleNavigate(mode);
+  };
 
   const handleNavigate = (view: string, params?: any) => {
     if (params?.genre) {
@@ -148,6 +159,7 @@ function MainApp() {
         currentView={currentView}
         onNavigate={handleNavigate}
         onOpenTokenStore={() => setIsTokenStoreOpen(true)}
+        onOpenAuth={handleOpenAuth}
       />
 
       {/* Main Content Area */}
@@ -160,6 +172,13 @@ function MainApp() {
             onSelectAuthor={handleSelectAuthor}
             onSelectGenre={genre => handleNavigate('discover', { genre })}
             onOpenLegal={handleOpenLegal}
+            onOpenAuth={handleOpenAuth}
+            onOpenReport={(type, id, title) => handleOpenReport(type, id, title)}
+            onContinueReading={(book, chapterId) => {
+              setSelectedBook(book);
+              setSelectedChapterId(chapterId);
+              setCurrentView('reader');
+            }}
           />
         )}
 
@@ -206,8 +225,8 @@ function MainApp() {
           />
         )}
 
-        {currentView === 'library' && (
-          <LibraryPage
+        {currentView === 'dashboard' && (
+          <ReaderDashboard
             onSelectBook={handleSelectBook}
             onReadChapter={(book, chapterId) => {
               setSelectedBook(book);
@@ -215,6 +234,24 @@ function MainApp() {
               setCurrentView('reader');
             }}
             onSelectAuthor={handleSelectAuthor}
+            onExplore={genre => handleNavigate('discover', { genre })}
+            onOpenTokenStore={() => setIsTokenStoreOpen(true)}
+            initialTab="dashboard"
+          />
+        )}
+
+        {currentView === 'library' && (
+          <ReaderDashboard
+            onSelectBook={handleSelectBook}
+            onReadChapter={(book, chapterId) => {
+              setSelectedBook(book);
+              setSelectedChapterId(chapterId);
+              setCurrentView('reader');
+            }}
+            onSelectAuthor={handleSelectAuthor}
+            onExplore={genre => handleNavigate('discover', { genre })}
+            onOpenTokenStore={() => setIsTokenStoreOpen(true)}
+            initialTab="library"
           />
         )}
 
@@ -229,6 +266,14 @@ function MainApp() {
             onOpenReportModal={() =>
               handleOpenReport('book', 'dmca-claim', 'Copyright Infringement Notice')
             }
+          />
+        )}
+
+        {(currentView === 'signin' || currentView === 'signup') && (
+          <AuthPage
+            initialMode={currentView === 'signin' ? 'signin' : 'signup'}
+            onNavigate={handleNavigate}
+            onOpenLegal={handleOpenLegal}
           />
         )}
       </main>
@@ -269,6 +314,13 @@ function MainApp() {
         onClose={() =>
           setReviewModalData(prev => ({ ...prev, isOpen: false }))
         }
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        initialMode={authModalMode}
+        onClose={() => setIsAuthModalOpen(false)}
+        onNavigate={handleNavigate}
       />
     </div>
   );

@@ -1,5 +1,14 @@
 export type UserRole = 'reader' | 'author' | 'admin';
 
+export interface UserReadingPreferences {
+  favoriteGenres?: string[];
+  readingGoal?: number;
+  theme?: 'light' | 'sepia' | 'dark' | 'night';
+  fontFace?: 'serif' | 'sans';
+  fontSize?: 'sm' | 'base' | 'lg' | 'xl' | '2xl';
+  emailUpdates?: boolean;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -11,6 +20,7 @@ export interface UserProfile {
   createdAt: string;
   updatedAt?: string;
   bio?: string;
+  readingPreferences?: UserReadingPreferences;
 }
 
 export interface AuthorProfile {
@@ -32,7 +42,7 @@ export interface AuthorProfile {
   createdAt: string;
 }
 
-export type BookStatus = 'draft' | 'pending_review' | 'approved' | 'published' | 'rejected' | 'suspended';
+export type BookStatus = 'draft' | 'pending_review' | 'approved' | 'published' | 'rejected' | 'suspended' | 'changes_requested';
 
 export interface Book {
   id: string;
@@ -55,7 +65,9 @@ export interface Book {
   rating: number;
   reviewCount: number;
   featured?: boolean;
+  isTrending?: boolean;
   rejectionReason?: string;
+  revisionFeedback?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -228,6 +240,12 @@ export interface PlatformSettings {
   requireAuthorApproval: boolean;
   requireBookApproval: boolean;
   minWithdrawalTokens?: number;
+  platformName?: string;
+  platformLogoUrl?: string;
+  contactEmail?: string;
+  currency?: string;
+  allowPublicRegistration?: boolean;
+  requireEmailVerification?: boolean;
   announcement?: string;
   announcementActive?: boolean;
   heroHeadline?: string;
@@ -235,6 +253,17 @@ export interface PlatformSettings {
   seoTitle?: string;
   seoDescription?: string;
   seoKeywords?: string;
+  featuredAuthorIds?: string[];
+  trendingBookIds?: string[];
+  homepageSections?: {
+    freeReads: boolean;
+    premium: boolean;
+    genres: boolean;
+    trending: boolean;
+    authors: boolean;
+    community: boolean;
+    ctaBanner: boolean;
+  };
 }
 
 export interface AuditLog {

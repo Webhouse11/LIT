@@ -61,6 +61,7 @@ interface AppContextType {
   followedAuthors: string[];
   notifications: Notification[];
   users: UserProfile[];
+  bookUnlocks: BookUnlock[];
 
   // Reader actions
   purchaseTokens: (packageId: string, provider: Transaction['paymentProvider']) => Promise<boolean>;
@@ -95,12 +96,16 @@ interface AppContextType {
   // Admin actions
   adminApproveBook: (bookId: string) => void;
   adminRejectBook: (bookId: string, reason: string) => void;
+  adminRequestChangesBook: (bookId: string, feedback: string) => void;
+  adminSuspendBook: (bookId: string) => void;
   adminRemoveBook: (bookId: string) => void;
   adminRestoreBook: (bookId: string) => void;
   adminToggleFeaturedBook: (bookId: string) => void;
+  adminToggleTrendingBook: (bookId: string) => void;
   adminApproveAuthor: (authorId: string) => void;
   adminRejectAuthor: (authorId: string) => void;
   adminSuspendAuthor: (authorId: string) => void;
+  adminReactivateAuthor: (authorId: string) => void;
   adminAddGenre: (genre: Omit<GenreItem, 'id'>) => void;
   adminUpdateGenre: (genreId: string, updates: Partial<GenreItem>) => void;
   adminDeleteGenre: (genreId: string) => void;
@@ -114,6 +119,7 @@ interface AppContextType {
   adminUpdateUser: (uid: string, updates: Partial<UserProfile>) => void;
   adminSuspendUser: (uid: string) => void;
   adminRestoreUser: (uid: string) => void;
+  adminProcessRefund: (transactionId: string, reason: string) => Promise<{ success: boolean; message: string }>;
   deleteReview: (bookId: string, reviewId: string) => void;
   broadcastNotification: (title: string, message: string, targetRole?: 'all' | 'author' | 'reader') => void;
 }
@@ -172,36 +178,153 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? JSON.parse(saved)
       : {
           userId: currentUserId,
-          tokenBalance: 45, // Starter LitTokens for immediate interactive testing!
-          totalPurchased: 45,
-          totalSpent: 0,
+          tokenBalance: 85, // Starter LitTokens for immediate interactive testing!
+          totalPurchased: 120,
+          totalSpent: 35,
           updatedAt: new Date().toISOString(),
         };
   });
 
   const [library, setLibrary] = useState<LibraryItem[]>(() => {
     const saved = localStorage.getItem(`litvault_library_${currentUserId}`);
-    return saved ? JSON.parse(saved) : [];
+    if (saved) return JSON.parse(saved);
+    if (currentUserId === 'reader-amara-id' || currentUserId.includes('reader')) {
+      return [
+        {
+          id: 'lib-1',
+          userId: currentUserId,
+          bookId: 'book-shadows-gold-coast',
+          bookTitle: 'Shadows of the Gold Coast',
+          authorName: 'Kwame Mensah',
+          coverImage: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=800&q=80',
+          isPremium: true,
+          tokenPrice: 15,
+          genre: 'Thriller',
+          savedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+        },
+        {
+          id: 'lib-2',
+          userId: currentUserId,
+          bookId: 'book-echoes-savanna',
+          bookTitle: 'Echoes of the Savanna',
+          authorName: 'Chinelo Okonkwo',
+          coverImage: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=800&q=80',
+          isPremium: false,
+          tokenPrice: 0,
+          genre: 'African Literature',
+          savedAt: new Date(Date.now() - 86400000 * 4).toISOString(),
+        },
+        {
+          id: 'lib-3',
+          userId: currentUserId,
+          bookId: 'book-whispers-zambezi',
+          bookTitle: 'Whispers of the Zambezi',
+          authorName: 'Grace Mtembu',
+          coverImage: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80',
+          isPremium: false,
+          tokenPrice: 0,
+          genre: 'Romance',
+          savedAt: new Date(Date.now() - 86400000 * 6).toISOString(),
+        },
+        {
+          id: 'lib-4',
+          userId: currentUserId,
+          bookId: 'book-desert-rose',
+          bookTitle: 'The Desert Rose Chronicles',
+          authorName: 'Fatima Al-Hassan',
+          coverImage: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=800&q=80',
+          isPremium: true,
+          tokenPrice: 20,
+          genre: 'Fantasy',
+          savedAt: new Date(Date.now() - 86400000 * 8).toISOString(),
+        },
+      ];
+    }
+    return [];
   });
 
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
     const saved = localStorage.getItem(`litvault_bookmarks_${currentUserId}`);
-    return saved ? JSON.parse(saved) : [];
+    if (saved) return JSON.parse(saved);
+    if (currentUserId === 'reader-amara-id' || currentUserId.includes('reader')) {
+      return [
+        {
+          id: 'bm-sgc-8',
+          userId: currentUserId,
+          bookId: 'book-shadows-gold-coast',
+          bookTitle: 'Shadows of the Gold Coast',
+          chapterId: 'chap-sgc-8',
+          chapterTitle: 'Chapter 8: The Jamestown Dossier',
+          coverImage: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=800&q=80',
+          progressPercent: 42,
+          updatedAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
+        },
+        {
+          id: 'bm-eos-3',
+          userId: currentUserId,
+          bookId: 'book-echoes-savanna',
+          bookTitle: 'Echoes of the Savanna',
+          chapterId: 'chap-eos-3',
+          chapterTitle: 'Chapter 3: Harmattan Dust Rising',
+          coverImage: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=800&q=80',
+          progressPercent: 68,
+          updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+        },
+      ];
+    }
+    return [];
   });
 
   const [readingProgress, setReadingProgress] = useState<Record<string, ReadingProgress>>(() => {
     const saved = localStorage.getItem(`litvault_progress_${currentUserId}`);
-    return saved ? JSON.parse(saved) : {};
+    if (saved) return JSON.parse(saved);
+    if (currentUserId === 'reader-amara-id' || currentUserId.includes('reader')) {
+      return {
+        'book-shadows-gold-coast': {
+          id: 'prog-shadows',
+          userId: currentUserId,
+          bookId: 'book-shadows-gold-coast',
+          chapterId: 'chap-sgc-8',
+          chapterNumber: 8,
+          progressPercent: 42,
+          lastReadAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
+        },
+        'book-echoes-savanna': {
+          id: 'prog-echoes',
+          userId: currentUserId,
+          bookId: 'book-echoes-savanna',
+          chapterId: 'chap-eos-3',
+          chapterNumber: 3,
+          progressPercent: 68,
+          lastReadAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+        },
+        'book-whispers-zambezi': {
+          id: 'prog-whispers',
+          userId: currentUserId,
+          bookId: 'book-whispers-zambezi',
+          chapterId: 'chap-zamb-1',
+          chapterNumber: 1,
+          progressPercent: 18,
+          lastReadAt: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
+        },
+      };
+    }
+    return {};
   });
 
   const [unlockedBooks, setUnlockedBooks] = useState<string[]>(() => {
     const saved = localStorage.getItem(`litvault_unlocked_${currentUserId}`);
-    return saved ? JSON.parse(saved) : [];
+    if (saved) return JSON.parse(saved);
+    if (currentUserId === 'reader-amara-id' || currentUserId.includes('reader')) {
+      return ['book-shadows-gold-coast', 'book-desert-rose'];
+    }
+    return [];
   });
 
   const [followedAuthors, setFollowedAuthors] = useState<string[]>(() => {
     const saved = localStorage.getItem(`litvault_follows_${currentUserId}`);
-    return saved ? JSON.parse(saved) : ['author-chinelo'];
+    if (saved) return JSON.parse(saved);
+    return ['author-chinelo', 'author-kwame'];
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -222,6 +345,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             paymentProvider: 'Stripe',
             status: 'completed',
             createdAt: new Date(Date.now() - 86400000).toISOString(),
+          },
+        ];
+  });
+
+  const [bookUnlocks, setBookUnlocks] = useState<BookUnlock[]>(() => {
+    const saved = localStorage.getItem('litvault_book_unlocks');
+    return saved
+      ? JSON.parse(saved)
+      : [
+          {
+            id: 'unlock-init-1',
+            userId: 'reader-amara-id',
+            bookId: 'book-shadows-gold-coast',
+            bookTitle: 'Shadows of the Gold Coast',
+            authorId: 'author-kwame',
+            tokensSpent: 15,
+            authorShare: 10,
+            platformShare: 5,
+            createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+          },
+          {
+            id: 'unlock-init-2',
+            userId: 'reader-binta-id',
+            bookId: 'book-shadows-gold-coast',
+            bookTitle: 'Shadows of the Gold Coast',
+            authorId: 'author-kwame',
+            tokensSpent: 15,
+            authorShare: 10,
+            platformShare: 5,
+            createdAt: new Date(Date.now() - 86400000 * 4).toISOString(),
+          },
+          {
+            id: 'unlock-init-3',
+            userId: 'user-kola',
+            bookId: 'book-desert-rose',
+            bookTitle: 'The Desert Rose Chronicles',
+            authorId: 'author-fatima',
+            tokensSpent: 20,
+            authorShare: 14,
+            platformShare: 6,
+            createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
           },
         ];
   });
@@ -495,6 +659,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('litvault_reading_prefs', JSON.stringify(readingPrefs));
   }, [readingPrefs]);
 
+  // Synchronize state when user switches (e.g. demo role switcher or login)
+  useEffect(() => {
+    if (user?.uid) {
+      const savedWallet = localStorage.getItem(`litvault_wallet_${user.uid}`);
+      if (savedWallet) {
+        try { setWallet(JSON.parse(savedWallet)); } catch (e) { console.error(e); }
+      }
+      const savedLib = localStorage.getItem(`litvault_library_${user.uid}`);
+      if (savedLib) {
+        try { setLibrary(JSON.parse(savedLib)); } catch (e) { console.error(e); }
+      }
+      const savedBm = localStorage.getItem(`litvault_bookmarks_${user.uid}`);
+      if (savedBm) {
+        try { setBookmarks(JSON.parse(savedBm)); } catch (e) { console.error(e); }
+      }
+      const savedProg = localStorage.getItem(`litvault_progress_${user.uid}`);
+      if (savedProg) {
+        try { setReadingProgress(JSON.parse(savedProg)); } catch (e) { console.error(e); }
+      }
+      const savedUnl = localStorage.getItem(`litvault_unlocked_${user.uid}`);
+      if (savedUnl) {
+        try { setUnlockedBooks(JSON.parse(savedUnl)); } catch (e) { console.error(e); }
+      }
+      const savedFol = localStorage.getItem(`litvault_follows_${user.uid}`);
+      if (savedFol) {
+        try { setFollowedAuthors(JSON.parse(savedFol)); } catch (e) { console.error(e); }
+      }
+    }
+  }, [user?.uid]);
+
   // Reader helpers
   const isBookUnlocked = (book: Book): boolean => {
     if (!book.isPremium || book.tokenPrice === 0) return true;
@@ -644,6 +838,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       platformShare,
       createdAt: new Date().toISOString(),
     };
+    setBookUnlocks(prev => [unlockRecord, ...prev]);
     // Save to localStorage
     const savedUnlocks = JSON.parse(localStorage.getItem('litvault_book_unlocks') || '[]');
     localStorage.setItem('litvault_book_unlocks', JSON.stringify([unlockRecord, ...savedUnlocks]));
@@ -1124,12 +1319,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminApproveBook = (bookId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can approve books.');
+      return;
+    }
     const book = books.find(b => b.id === bookId);
     setBooks(prev => prev.map(b => (b.id === bookId ? { ...b, status: 'published' } : b)));
     logAdminAction('Approved Book', `Approved book "${book?.title || bookId}" for global publication.`);
   };
 
   const adminRejectBook = (bookId: string, reason: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can reject books.');
+      return;
+    }
     const book = books.find(b => b.id === bookId);
     setBooks(prev =>
       prev.map(b => (b.id === bookId ? { ...b, status: 'rejected', rejectionReason: reason } : b))
@@ -1137,19 +1340,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAdminAction('Rejected Book', `Rejected book "${book?.title || bookId}". Reason: ${reason}`);
   };
 
+  const adminRequestChangesBook = (bookId: string, feedback: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can request book changes.');
+      return;
+    }
+    const book = books.find(b => b.id === bookId);
+    setBooks(prev =>
+      prev.map(b => (b.id === bookId ? { ...b, status: 'changes_requested', revisionFeedback: feedback } : b))
+    );
+    logAdminAction('Requested Book Revisions', `Requested changes for "${book?.title || bookId}". Notes: ${feedback}`);
+  };
+
+  const adminSuspendBook = (bookId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can suspend books.');
+      return;
+    }
+    const book = books.find(b => b.id === bookId);
+    setBooks(prev => prev.map(b => (b.id === bookId ? { ...b, status: 'suspended' } : b)));
+    logAdminAction('Suspended Book', `Suspended "${book?.title || bookId}" from active catalog.`);
+  };
+
   const adminRemoveBook = (bookId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can remove books.');
+      return;
+    }
     const book = books.find(b => b.id === bookId);
     setBooks(prev => prev.map(b => (b.id === bookId ? { ...b, status: 'suspended' } : b)));
     logAdminAction('Suspended Book', `Suspended "${book?.title || bookId}" from active catalog.`);
   };
 
   const adminRestoreBook = (bookId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can restore books.');
+      return;
+    }
     const book = books.find(b => b.id === bookId);
     setBooks(prev => prev.map(b => (b.id === bookId ? { ...b, status: 'published' } : b)));
     logAdminAction('Restored Book', `Restored book "${book?.title || bookId}" to active catalog.`);
   };
 
   const adminToggleFeaturedBook = (bookId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can toggle featured status.');
+      return;
+    }
     setBooks(prev =>
       prev.map(b => {
         if (b.id === bookId) {
@@ -1162,25 +1399,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const adminToggleTrendingBook = (bookId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can toggle trending status.');
+      return;
+    }
+    setBooks(prev =>
+      prev.map(b => {
+        if (b.id === bookId) {
+          const nextTrending = !b.isTrending;
+          logAdminAction('Toggled Trending Book', `Set "${b.title}" trending=${nextTrending}`);
+          return { ...b, isTrending: nextTrending };
+        }
+        return b;
+      })
+    );
+  };
+
   const adminApproveAuthor = (authorId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can approve authors.');
+      return;
+    }
     const author = authors.find(a => a.id === authorId);
     setAuthors(prev => prev.map(a => (a.id === authorId ? { ...a, status: 'approved' } : a)));
     logAdminAction('Approved Author', `Approved creator profile for "${author?.name || authorId}".`);
   };
 
   const adminRejectAuthor = (authorId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can reject authors.');
+      return;
+    }
     const author = authors.find(a => a.id === authorId);
     setAuthors(prev => prev.map(a => (a.id === authorId ? { ...a, status: 'rejected' } : a)));
     logAdminAction('Rejected Author', `Rejected author application for "${author?.name || authorId}".`);
   };
 
   const adminSuspendAuthor = (authorId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can suspend authors.');
+      return;
+    }
     const author = authors.find(a => a.id === authorId);
     setAuthors(prev => prev.map(a => (a.id === authorId ? { ...a, status: 'suspended' } : a)));
     logAdminAction('Suspended Author', `Suspended author privileges for "${author?.name || authorId}".`);
   };
 
+  const adminReactivateAuthor = (authorId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can reactivate authors.');
+      return;
+    }
+    const author = authors.find(a => a.id === authorId);
+    setAuthors(prev => prev.map(a => (a.id === authorId ? { ...a, status: 'approved' } : a)));
+    logAdminAction('Reactivated Author', `Reactivated author privileges for "${author?.name || authorId}".`);
+  };
+
   const adminAddGenre = (genre: Omit<GenreItem, 'id'>) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can add genres.');
+      return;
+    }
     const id = genre.slug || genre.name.toLowerCase().replace(/\s+/g, '-');
     const newG: GenreItem = { ...genre, id };
     setGenres(prev => [...prev, newG]);
@@ -1188,16 +1468,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminUpdateGenre = (genreId: string, updates: Partial<GenreItem>) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can update genres.');
+      return;
+    }
     setGenres(prev => prev.map(g => (g.id === genreId ? { ...g, ...updates } : g)));
     logAdminAction('Updated Genre', `Updated genre ID "${genreId}".`);
   };
 
   const adminDeleteGenre = (genreId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can delete genres.');
+      return;
+    }
     setGenres(prev => prev.filter(g => g.id !== genreId));
     logAdminAction('Deleted Genre', `Deleted genre ID "${genreId}".`);
   };
 
   const adminAddTokenPackage = (pkg: Omit<TokenPackage, 'id'>) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can add token packages.');
+      return;
+    }
     const id = `pack-${Date.now()}`;
     const newPkg: TokenPackage = { ...pkg, id };
     setTokenPackages(prev => [...prev, newPkg]);
@@ -1205,26 +1497,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminUpdateTokenPackage = (pkgId: string, updates: Partial<TokenPackage>) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can update token packages.');
+      return;
+    }
     setTokenPackages(prev => prev.map(p => (p.id === pkgId ? { ...p, ...updates } : p)));
     logAdminAction('Updated Token Package', `Updated token package "${pkgId}".`);
   };
 
   const adminUpdateSettings = (updates: Partial<PlatformSettings>) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can update platform settings.');
+      return;
+    }
     setSettings(prev => ({ ...prev, ...updates }));
     logAdminAction('Updated Platform Settings', `Adjusted settings: ${Object.keys(updates).join(', ')}.`);
   };
 
   const adminUpdateAdSlot = (slotId: string, updates: Partial<AdSlotConfig>) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can update ad slots.');
+      return;
+    }
     setAdSlots(prev => prev.map(s => (s.id === slotId ? { ...s, ...updates } : s)));
     logAdminAction('Configured Ad Slot', `Updated slot "${slotId}" (enabled: ${updates.enabled ?? 'unchanged'}).`);
   };
 
   const adminProcessReport = (reportId: string, newStatus: Report['status']) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can process reports.');
+      return;
+    }
     setReports(prev => prev.map(r => (r.id === reportId ? { ...r, status: newStatus } : r)));
     logAdminAction('Processed Moderation Report', `Marked report "${reportId}" as ${newStatus}.`);
   };
 
   const adminProcessWithdrawal = (withdrawalId: string, newStatus: Withdrawal['status'], reason?: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can process withdrawals.');
+      return;
+    }
     setWithdrawals(prev =>
       prev.map(w =>
         w.id === withdrawalId ? { ...w, status: newStatus, rejectionReason: reason } : w
@@ -1234,23 +1546,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminDeleteTokenPackage = (pkgId: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can delete token packages.');
+      return;
+    }
     setTokenPackages(prev => prev.filter(p => p.id !== pkgId));
     logAdminAction('Deleted Token Package', `Removed token bundle "${pkgId}".`);
   };
 
   const adminUpdateUser = (uid: string, updates: Partial<UserProfile>) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can update users.');
+      return;
+    }
     setUsers(prev => prev.map(u => (u.uid === uid ? { ...u, ...updates, updatedAt: new Date().toISOString() } : u)));
     logAdminAction('Updated User', `Updated profile/role for user ${uid}.`);
   };
 
   const adminSuspendUser = (uid: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can suspend users.');
+      return;
+    }
     setUsers(prev => prev.map(u => (u.uid === uid ? { ...u, status: 'suspended', updatedAt: new Date().toISOString() } : u)));
     logAdminAction('Suspended User', `Suspended account privileges for user ID "${uid}".`);
   };
 
   const adminRestoreUser = (uid: string) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Only administrators can restore users.');
+      return;
+    }
     setUsers(prev => prev.map(u => (u.uid === uid ? { ...u, status: 'active', updatedAt: new Date().toISOString() } : u)));
     logAdminAction('Restored User', `Restored account privileges for user ID "${uid}".`);
+  };
+
+  const adminProcessRefund = async (transactionId: string, reason: string): Promise<{ success: boolean; message: string }> => {
+    const tx = transactions.find(t => t.id === transactionId);
+    if (!tx) return { success: false, message: 'Transaction not found in ledger.' };
+    if (tx.status === 'failed') return { success: false, message: 'Transaction is already marked as failed.' };
+
+    const refundTx: Transaction = {
+      id: `ref-${Date.now()}`,
+      userId: tx.userId,
+      userEmail: tx.userEmail,
+      packageId: tx.packageId,
+      packageName: `Refund: ${tx.packageName}`,
+      paymentReference: `REFUND_${tx.paymentReference}`,
+      amountCents: -Math.abs(tx.amountCents),
+      currency: tx.currency,
+      tokensPurchased: -Math.abs(tx.tokensPurchased),
+      paymentProvider: tx.paymentProvider,
+      status: 'completed',
+      createdAt: new Date().toISOString(),
+    };
+
+    setTransactions(prev => [refundTx, ...prev]);
+    logAdminAction(
+      'Processed Financial Refund',
+      `Issued auditable refund of ${tx.tokensPurchased} tokens ($${(tx.amountCents / 100).toFixed(2)}) for ref ${tx.paymentReference}. Reason: ${reason}`
+    );
+    return {
+      success: true,
+      message: `Auditable refund for ${tx.paymentReference} was processed successfully and logged to the ledger.`,
+    };
   };
 
   const deleteReview = (bookId: string, reviewId: string) => {
@@ -1306,6 +1665,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         followedAuthors,
         notifications,
         users,
+        bookUnlocks,
 
         purchaseTokens,
         unlockBook,
@@ -1337,12 +1697,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         adminApproveBook,
         adminRejectBook,
+        adminRequestChangesBook,
+        adminSuspendBook,
         adminRemoveBook,
         adminRestoreBook,
         adminToggleFeaturedBook,
+        adminToggleTrendingBook,
         adminApproveAuthor,
         adminRejectAuthor,
         adminSuspendAuthor,
+        adminReactivateAuthor,
         adminAddGenre,
         adminUpdateGenre,
         adminDeleteGenre,
@@ -1356,6 +1720,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminUpdateUser,
         adminSuspendUser,
         adminRestoreUser,
+        adminProcessRefund,
         deleteReview,
         broadcastNotification,
       }}
